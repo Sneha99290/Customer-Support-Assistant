@@ -93,11 +93,27 @@ class ReturnService:
 
         eligibility = self.check_return_eligibility(order_id)
 
+        # include return window info so tools/agents can report it directly
+        window_end = None
+        days_left = None
+        try:
+            window_end = order.get("return_window_end")
+            if window_end:
+                window_date = datetime.strptime(window_end, self.DATE_FORMAT).date()
+                today = datetime.today().date()
+                days_left = (window_date - today).days
+        except Exception:
+            # fall back to raw value if parsing fails
+            window_end = order.get("return_window_end")
+        print(window_end)
+
         return {
             "success": True,
             "order_id": order_id,
             "return": return_record,
-            "eligibility": eligibility
+            "eligibility": eligibility,
+            "return_window_end": window_end,
+            "return_window_days_left": days_left,
         }
     
     def generate_return_id(self) -> str:

@@ -1,8 +1,8 @@
-from langchain.document_loaders import PyPdfLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 import chromadb
-from config import EMBEDDING_MODEL, CHROMA_DB_COLLECTION_NAME
+from config import EMBEDDING_MODEL, CHROMA_DB_COLLECTION_NAME, KNOWLEDGE_BASE_PATH
 import os
 import uuid
 
@@ -17,7 +17,7 @@ class IngestionService:
         for filename in os.listdir(folder_path):
             if filename.endswith(".pdf"):
                 file_path = os.path.join(folder_path, filename)
-                loader = PyPdfLoader(file_path)
+                loader = PyPDFLoader(file_path)
                 documents = loader.load()
                 yield from documents
 
@@ -34,13 +34,16 @@ class IngestionService:
         documents = []
         embedding_vectors = []
         metadatas = []
-        for chunk, embedding_vector in enumerate(zip(chunks,embeddings)):
+        for chunk, embedding_vector in zip(chunks, embeddings):
             ids.append(str(uuid.uuid4()))
             documents.append(chunk.page_content)
-            metadata = dict(chunk.metadata)if hasattr(chunk, 'metadata') else {} 
+            metadata = dict(chunk.metadata) if hasattr(chunk, 'metadata') else {}
             metadata['content_length'] = len(chunk.page_content)
             metadatas.append(metadata)
-            embedding_vectors.append(embedding_vector.tolist())
+            try:
+                embedding_vectors.append(embedding_vector.tolist())
+            except AttributeError:
+                embedding_vectors.append(list(embedding_vector))
         self.collection.add(
             ids=ids,
             documents=documents,
@@ -54,3 +57,7 @@ class IngestionService:
         embeddings = self.create_embeddings(chunks)
         self.vector_db_store(chunks, embeddings)
         print(f"Successfully indexed {len(chunks)} chunks.")
+
+if __name__ == "__main__":
+    ingestion_service = IngestionService()
+    ingestion_service.ingestion_pipeline(folder_path=KNOWLEDGE_BASE_PATH)
